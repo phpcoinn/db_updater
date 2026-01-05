@@ -1,0 +1,16 @@
+{
+    "name": "db-updater/db-updater",
+    "description": "Database schema synchronization tool for MySQL",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "DbUpdater\\": "src/"
+        }
+    }
+}
+
