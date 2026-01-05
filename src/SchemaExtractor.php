@@ -21,6 +21,7 @@ class SchemaExtractor
         
         $schema = [
             'tables' => [],
+            'views' => [],
         ];
 
         $tables = $this->getTables();
@@ -33,8 +34,15 @@ class SchemaExtractor
                 'table_options' => $this->getTableOptions($tableName),
             ];
         }
+        
+        // Extract views
+        $views = $this->getViews();
+        foreach ($views as $viewName => $viewData) {
+            $schema['views'][$viewName] = $viewData;
+        }
 
         $this->logger->info("Extracted schema for " . count($tables) . " tables");
+        $this->logger->info("Extracted schema for " . count($views) . " views");
         return $schema;
     }
 
@@ -214,6 +222,40 @@ class SchemaExtractor
             'comment' => $row['TABLE_COMMENT'],
             'auto_increment' => $row['AUTO_INCREMENT'],
         ];
+    }
+    
+    /**
+     * Extract views from INFORMATION_SCHEMA.VIEWS
+     */
+    private function getViews(): array
+    {
+        $sql = "SELECT 
+                    TABLE_NAME,
+                    VIEW_DEFINITION
+                FROM INFORMATION_SCHEMA.VIEWS 
+                WHERE TABLE_SCHEMA = :dbname 
+                ORDER BY TABLE_NAME";
+        
+        $pdo = $this->db->getPdo();
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(['dbname' => $this->databaseName]);
+        
+        $views = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $viewName = $row['TABLE_NAME'];
+            $viewDefinition = $row['VIEW_DEFINITION'];
+            
+            // Normalize the view definition (remove extra whitespace)
+            $viewDefinition = preg_replace('/\s+/', ' ', $viewDefinition);
+            $viewDefinition = trim($viewDefinition);
+            
+            $views[$viewName] = [
+                'name' => $viewName,
+                'definition' => $viewDefinition,
+            ];
+        }
+        
+        return $views;
     }
 }
 

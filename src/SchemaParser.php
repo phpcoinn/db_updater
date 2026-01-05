@@ -27,11 +27,17 @@ class SchemaParser
     {
         $schema = [
             'tables' => [],
+            'views' => [],
         ];
 
         // Remove comments
         // Remove single-line comments (-- comments)
         $ddl = preg_replace('/--.*$/m', '', $ddl);
+        
+        // Extract views BEFORE removing comments (views are wrapped in MySQL conditional comments)
+        $views = $this->parseViews($ddl);
+        $schema['views'] = $views;
+        
         // Remove multi-line comments including MySQL conditional comments (/*! ... */)
         // This pattern handles /* */ and /*! ... */ style comments
         $ddl = preg_replace('/\/\*[^*]*\*+(?:[^*\/][^*]*\*+)*\//s', '', $ddl);
@@ -137,7 +143,81 @@ class SchemaParser
         }
 
         $this->logger->info("Parsed " . count($schema['tables']) . " tables from DDL");
+        $this->logger->info("Parsed " . count($schema['views']) . " views from DDL");
         return $schema;
+    }
+    
+    /**
+     * Parse CREATE VIEW statements from DDL
+     * Handles MySQL conditional comments like / *!50001 CREATE VIEW ... * /
+     * mysqldump creates views in multiple parts - we need to find the actual definition
+     */
+    private function parseViews(string $ddl): array
+    {
+        $views = [];
+        
+        // Pattern to match MySQL conditional comments containing CREATE VIEW
+        // mysqldump splits CREATE VIEW across multiple comments:
+        // /*!50001 CREATE ALGORITHM=UNDEFINED */
+        // /*!50013 DEFINER=... SQL SECURITY DEFINER */
+        // /*!50001 VIEW `name` AS select ... */
+        // We need to match the last one which contains the actual definition
+        
+        // First, find all view definitions (the ones with actual SELECT statements, not placeholders)
+        // Look for patterns that don't start with "SELECT 1 AS" (which are placeholders)
+        $pattern = '/\/\*!50001\s+VIEW\s+`?(\w+)`?\s+AS\s+(.+?)\s*\*\//is';
+        
+        if (preg_match_all($pattern, $ddl, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $viewName = trim($match[1]);
+                $viewDefinition = trim($match[2]);
+                
+                // Skip placeholder definitions (mysqldump creates these for temporary structure)
+                if (preg_match('/^\s*SELECT\s+1\s+AS/i', $viewDefinition)) {
+                    continue;
+                }
+                
+                // Normalize the view definition (remove extra whitespace)
+                $viewDefinition = preg_replace('/\s+/', ' ', $viewDefinition);
+                $viewDefinition = trim($viewDefinition);
+                
+                $views[$viewName] = [
+                    'name' => $viewName,
+                    'definition' => $viewDefinition,
+                ];
+            }
+        }
+        
+        // Also check for regular CREATE VIEW statements (not in conditional comments)
+        $pattern2 = '/CREATE\s+(?:OR\s+REPLACE\s+)?(?:ALGORITHM=\w+\s+)?(?:DEFINER=[^\s]+\s+)?(?:SQL\s+SECURITY\s+\w+\s+)?VIEW\s+`?(\w+)`?\s+AS\s+(.+?)(?=;|\s*$)/is';
+        
+        if (preg_match_all($pattern2, $ddl, $matches2, PREG_SET_ORDER)) {
+            foreach ($matches2 as $match) {
+                $viewName = trim($match[1]);
+                $viewDefinition = trim($match[2]);
+                
+                // Skip placeholder definitions
+                if (preg_match('/^\s*SELECT\s+1\s+AS/i', $viewDefinition)) {
+                    continue;
+                }
+                
+                // Skip if already parsed from conditional comments
+                if (isset($views[$viewName])) {
+                    continue;
+                }
+                
+                // Normalize the view definition
+                $viewDefinition = preg_replace('/\s+/', ' ', $viewDefinition);
+                $viewDefinition = trim($viewDefinition);
+                
+                $views[$viewName] = [
+                    'name' => $viewName,
+                    'definition' => $viewDefinition,
+                ];
+            }
+        }
+        
+        return $views;
     }
 
     private function parseColumns(string $tableBody): array

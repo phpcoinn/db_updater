@@ -50,6 +50,9 @@ class SchemaComparator
             'tables_to_create' => [],
             'tables_to_alter' => [],
             'tables_to_drop' => [],
+            'views_to_create' => [],
+            'views_to_modify' => [],
+            'views_to_drop' => [],
         ];
 
         $currentTables = array_keys($currentSchema['tables'] ?? []);
@@ -96,10 +99,67 @@ class SchemaComparator
             }
         }
 
+        // Compare views
+        $currentViews = $currentSchema['views'] ?? [];
+        $desiredViews = $desiredSchema['views'] ?? [];
+        
+        $currentViewNames = array_keys($currentViews);
+        $desiredViewNames = array_keys($desiredViews);
+        
+        // Find views to create
+        foreach ($desiredViewNames as $viewName) {
+            // Skip ignored views (using same logic as tables)
+            if ($this->shouldIgnoreTable($viewName)) {
+                $this->logger->debug("Ignoring view {$viewName} during comparison");
+                continue;
+            }
+            
+            if (!in_array($viewName, $currentViewNames)) {
+                $differences['views_to_create'][] = $viewName;
+            } else {
+                // Compare view definitions
+                $currentDef = $currentViews[$viewName]['definition'] ?? '';
+                $desiredDef = $desiredViews[$viewName]['definition'] ?? '';
+                
+                // Normalize for comparison (case-insensitive, whitespace normalization)
+                $currentDefNormalized = $this->normalizeViewDefinition($currentDef);
+                $desiredDefNormalized = $this->normalizeViewDefinition($desiredDef);
+                
+                if ($currentDefNormalized !== $desiredDefNormalized) {
+                    $differences['views_to_modify'][] = $viewName;
+                }
+            }
+        }
+        
+        // Find views to drop (optional - commented out by default for safety)
+        // foreach ($currentViewNames as $viewName) {
+        //     if (!in_array($viewName, $desiredViewNames)) {
+        //         $differences['views_to_drop'][] = $viewName;
+        //     }
+        // }
+        
         $this->logger->info("Found " . count($differences['tables_to_create']) . " tables to create");
         $this->logger->info("Found " . count($differences['tables_to_alter']) . " tables to alter");
+        $this->logger->info("Found " . count($differences['views_to_create']) . " views to create");
+        $this->logger->info("Found " . count($differences['views_to_modify']) . " views to modify");
         
         return $differences;
+    }
+    
+    /**
+     * Normalize view definition for comparison
+     */
+    private function normalizeViewDefinition(string $definition): string
+    {
+        // Convert to lowercase
+        $definition = strtolower($definition);
+        // Normalize whitespace
+        $definition = preg_replace('/\s+/', ' ', $definition);
+        // Trim
+        $definition = trim($definition);
+        // Remove trailing semicolons
+        $definition = rtrim($definition, ';');
+        return $definition;
     }
 
     private function compareTable(array $current, array $desired, string $tableName): array

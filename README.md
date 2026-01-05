@@ -4,7 +4,7 @@ A PHP tool that synchronizes MySQL database schema by comparing the current stat
 
 ## Features
 
-- Parses DDL files containing CREATE TABLE statements
+- Parses DDL files containing CREATE TABLE and CREATE VIEW statements
 - Extracts current database schema from MySQL INFORMATION_SCHEMA
 - Compares current vs desired schemas
 - Detects differences in:
@@ -13,7 +13,8 @@ A PHP tool that synchronizes MySQL database schema by comparing the current stat
   - Indexes (missing, changed)
   - Foreign keys (missing, changed)
   - Table options (engine, collation, etc.)
-- Generates appropriate ALTER TABLE and CREATE TABLE statements
+  - Views (missing, modified)
+- Generates appropriate ALTER TABLE, CREATE TABLE, and CREATE OR REPLACE VIEW statements
 - Dry-run mode to preview changes without applying
 - Detailed logging of all operations
 

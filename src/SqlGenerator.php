@@ -27,8 +27,37 @@ class SqlGenerator
             $alterStatements = $this->generateAlterTable($tableName, $tableDiff);
             $sqlStatements = array_merge($sqlStatements, $alterStatements);
         }
+        
+        // Generate CREATE OR REPLACE VIEW statements
+        foreach ($differences['views_to_create'] ?? [] as $viewName) {
+            $sqlStatements[] = $this->generateCreateView($viewName);
+        }
+        
+        // Generate CREATE OR REPLACE VIEW statements for modified views
+        foreach ($differences['views_to_modify'] ?? [] as $viewName) {
+            $sqlStatements[] = $this->generateCreateView($viewName);
+        }
+        
+        // Generate DROP VIEW statements (if enabled)
+        foreach ($differences['views_to_drop'] ?? [] as $viewName) {
+            $sqlStatements[] = "DROP VIEW IF EXISTS `{$viewName}`;";
+        }
 
         return $sqlStatements;
+    }
+    
+    /**
+     * Generate CREATE OR REPLACE VIEW statement
+     */
+    private function generateCreateView(string $viewName): string
+    {
+        $view = $this->desiredSchema['views'][$viewName];
+        $definition = $view['definition'];
+        
+        // Ensure definition ends with semicolon
+        $definition = rtrim($definition, ';');
+        
+        return "CREATE OR REPLACE VIEW `{$viewName}` AS {$definition};";
     }
 
     private function generateCreateTable(string $tableName): string
