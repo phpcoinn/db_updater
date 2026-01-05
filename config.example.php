@@ -30,5 +30,15 @@ return [
         // 'users.legacy_field',
         // 'version_specific_column', // ignores this column in all tables
     ],
+    
+    // Tables to ignore during schema comparison
+    // Useful when supporting multiple database versions
+    // Format: array of table names to completely skip
+    'ignore_tables' => [
+        // Examples:
+        // 'legacy_table',
+        // 'old_version_table',
+        // 'temporary_table',
+    ],
 ];
 

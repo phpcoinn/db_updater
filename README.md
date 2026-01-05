@@ -218,6 +218,23 @@ Ignored columns will:
 - Not be modified if different
 - Not be dropped if extra
 
+### Ignoring Tables
+
+When supporting multiple database versions, you may have tables that exist in one version but not another. Use the `ignore_tables` configuration option to exclude entire tables from schema comparison:
+
+```php
+'ignore_tables' => [
+    'legacy_table',      // Ignores 'legacy_table' completely
+    'old_version_table', // Ignores 'old_version_table' completely
+    'temporary_table',   // Ignores 'temporary_table' completely
+],
+```
+
+Ignored tables will:
+- Not be created if missing
+- Not be compared/modified if existing
+- Not be dropped if extra
+
 ## Logging
 
 All operations are logged to `db_updater.log` (configurable in `config.php`). Log levels:

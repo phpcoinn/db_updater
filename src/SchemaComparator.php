@@ -6,11 +6,21 @@ class SchemaComparator
 {
     private $logger;
     private $ignoreColumns;
+    private $ignoreTables;
 
-    public function __construct(Logger $logger, array $ignoreColumns = [])
+    public function __construct(Logger $logger, array $ignoreColumns = [], array $ignoreTables = [])
     {
         $this->logger = $logger;
         $this->ignoreColumns = $ignoreColumns;
+        $this->ignoreTables = $ignoreTables;
+    }
+    
+    /**
+     * Check if a table should be ignored during comparison
+     */
+    private function shouldIgnoreTable(string $tableName): bool
+    {
+        return in_array($tableName, $this->ignoreTables, true);
     }
     
     /**
@@ -47,6 +57,12 @@ class SchemaComparator
 
         // Find tables to create
         foreach ($desiredTables as $tableName) {
+            // Skip ignored tables
+            if ($this->shouldIgnoreTable($tableName)) {
+                $this->logger->debug("Ignoring table {$tableName} during comparison");
+                continue;
+            }
+            
             if (!in_array($tableName, $currentTables)) {
                 $differences['tables_to_create'][] = $tableName;
             }
@@ -61,6 +77,12 @@ class SchemaComparator
 
         // Compare existing tables
         foreach ($desiredTables as $tableName) {
+            // Skip ignored tables
+            if ($this->shouldIgnoreTable($tableName)) {
+                $this->logger->debug("Ignoring table {$tableName} during comparison");
+                continue;
+            }
+            
             if (in_array($tableName, $currentTables)) {
                 $tableDiff = $this->compareTable(
                     $currentSchema['tables'][$tableName],

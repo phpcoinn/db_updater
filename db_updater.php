@@ -78,9 +78,10 @@ class DbUpdater
             $desiredSchema = $parser->parseDdlFile($ddlFile);
 
             // Compare schemas to find specific differences
-            // Get ignore_columns configuration
+            // Get ignore configuration
             $ignoreColumns = $this->config['ignore_columns'] ?? [];
-            $comparator = new SchemaComparator($this->logger, $ignoreColumns);
+            $ignoreTables = $this->config['ignore_tables'] ?? [];
+            $comparator = new SchemaComparator($this->logger, $ignoreColumns, $ignoreTables);
             $differences = $comparator->compare($currentSchema, $desiredSchema);
 
             // Generate SQL statements
