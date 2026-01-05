@@ -165,6 +165,9 @@ class SchemaComparator
         $definition = strtolower($definition);
         // Normalize whitespace
         $definition = preg_replace('/\s+/', ' ', $definition);
+        // Remove database name prefixes (e.g., `database`.`table` becomes `table`)
+        // This handles cases where MySQL stores views with database prefixes
+        $definition = preg_replace('/`[^`]+`\.`/i', '`', $definition);
         // Trim
         $definition = trim($definition);
         // Remove trailing semicolons
