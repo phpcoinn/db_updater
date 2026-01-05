@@ -81,7 +81,8 @@ class DbUpdater
             // Get ignore configuration
             $ignoreColumns = $this->config['ignore_columns'] ?? [];
             $ignoreTables = $this->config['ignore_tables'] ?? [];
-            $comparator = new SchemaComparator($this->logger, $ignoreColumns, $ignoreTables);
+            $ignoreViews = $this->config['ignore_views'] ?? [];
+            $comparator = new SchemaComparator($this->logger, $ignoreColumns, $ignoreTables, $ignoreViews);
             $differences = $comparator->compare($currentSchema, $desiredSchema);
 
             // Generate SQL statements

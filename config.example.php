@@ -40,5 +40,15 @@ return [
         // 'old_version_table',
         // 'temporary_table',
     ],
+    
+    // Views to ignore during schema comparison
+    // Useful when supporting multiple database versions
+    // Format: array of view names to completely skip
+    'ignore_views' => [
+        // Examples:
+        // 'legacy_view',
+        // 'old_version_view',
+        // 'temporary_view',
+    ],
 ];
 

@@ -236,6 +236,23 @@ Ignored tables will:
 - Not be compared/modified if existing
 - Not be dropped if extra
 
+### Ignoring Views
+
+When supporting multiple database versions, you may have views that exist in one version but not another. Use the `ignore_views` configuration option to exclude entire views from schema comparison:
+
+```php
+'ignore_views' => [
+    'legacy_view',      // Ignores 'legacy_view' completely
+    'old_version_view', // Ignores 'old_version_view' completely
+    'temporary_view',   // Ignores 'temporary_view' completely
+],
+```
+
+Ignored views will:
+- Not be created if missing
+- Not be compared/modified if existing
+- Not be dropped if extra
+
 ## Logging
 
 All operations are logged to `db_updater.log` (configurable in `config.php`). Log levels:

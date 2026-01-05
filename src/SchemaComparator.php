@@ -7,12 +7,14 @@ class SchemaComparator
     private $logger;
     private $ignoreColumns;
     private $ignoreTables;
+    private $ignoreViews;
 
-    public function __construct(Logger $logger, array $ignoreColumns = [], array $ignoreTables = [])
+    public function __construct(Logger $logger, array $ignoreColumns = [], array $ignoreTables = [], array $ignoreViews = [])
     {
         $this->logger = $logger;
         $this->ignoreColumns = $ignoreColumns;
         $this->ignoreTables = $ignoreTables;
+        $this->ignoreViews = $ignoreViews;
     }
     
     /**
@@ -21,6 +23,14 @@ class SchemaComparator
     private function shouldIgnoreTable(string $tableName): bool
     {
         return in_array($tableName, $this->ignoreTables, true);
+    }
+    
+    /**
+     * Check if a view should be ignored during comparison
+     */
+    private function shouldIgnoreView(string $viewName): bool
+    {
+        return in_array($viewName, $this->ignoreViews, true);
     }
     
     /**
@@ -108,8 +118,8 @@ class SchemaComparator
         
         // Find views to create
         foreach ($desiredViewNames as $viewName) {
-            // Skip ignored views (using same logic as tables)
-            if ($this->shouldIgnoreTable($viewName)) {
+            // Skip ignored views
+            if ($this->shouldIgnoreView($viewName)) {
                 $this->logger->debug("Ignoring view {$viewName} during comparison");
                 continue;
             }
