@@ -319,7 +319,9 @@ class SchemaParser
         foreach ($parts as $part) {
             $part = trim($part);
             
-            if (preg_match('/^\s*(?:CONSTRAINT\s+`?(\w+)`?\s+)?FOREIGN\s+KEY\s*\((.+?)\)\s+REFERENCES\s+`?(\w+)`?\s*\((.+?)\)(?:\s+ON\s+(UPDATE|DELETE)\s+(RESTRICT|CASCADE|SET\s+NULL|NO\s+ACTION))?/i', $part, $matches)) {
+            // Match FOREIGN KEY with optional CONSTRAINT name, and both ON UPDATE and ON DELETE clauses
+            // Pattern matches: CONSTRAINT name? FOREIGN KEY (columns) REFERENCES table (columns) [ON DELETE action] [ON UPDATE action]
+            if (preg_match('/^\s*(?:CONSTRAINT\s+`?(\w+)`?\s+)?FOREIGN\s+KEY\s*\((.+?)\)\s+REFERENCES\s+`?(\w+)`?\s*\((.+?)\)/i', $part, $matches)) {
                 $name = $matches[1] ?? '';
                 $columns = $this->parseColumnList($matches[2]);
                 $referencedTable = $matches[3];
@@ -334,18 +336,18 @@ class SchemaParser
                     'columns' => $columns,
                     'referenced_table' => $referencedTable,
                     'referenced_columns' => $referencedColumns,
-                    'on_update' => 'RESTRICT',
-                    'on_delete' => 'RESTRICT',
+                    'on_update' => 'RESTRICT', // Default
+                    'on_delete' => 'RESTRICT', // Default
                 ];
 
-                // Parse ON UPDATE/DELETE clauses
-                if (isset($matches[5]) && isset($matches[6])) {
-                    $action = strtoupper($matches[6]);
-                    if ($matches[5] === 'UPDATE') {
-                        $foreignKeys[$name]['on_update'] = $action;
-                    } else {
-                        $foreignKeys[$name]['on_delete'] = $action;
-                    }
+                // Parse ON DELETE clause
+                if (preg_match('/\bON\s+DELETE\s+(RESTRICT|CASCADE|SET\s+NULL|NO\s+ACTION)\b/i', $part, $deleteMatch)) {
+                    $foreignKeys[$name]['on_delete'] = strtoupper($deleteMatch[1]);
+                }
+
+                // Parse ON UPDATE clause
+                if (preg_match('/\bON\s+UPDATE\s+(RESTRICT|CASCADE|SET\s+NULL|NO\s+ACTION)\b/i', $part, $updateMatch)) {
+                    $foreignKeys[$name]['on_update'] = strtoupper($updateMatch[1]);
                 }
             }
         }
