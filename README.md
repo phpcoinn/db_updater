@@ -28,6 +28,27 @@ cp config.example.php config.php
 
 2. Edit `config.php` with your database connection details.
 
+### Building a PHAR Archive (Optional)
+
+You can build a single executable PHAR file for easier distribution:
+
+```bash
+php build-phar.php
+```
+
+This will create `db_updater.phar` which contains all the necessary code. You can then use it directly:
+
+```bash
+# Using PHP
+php db_updater.phar schema.sql
+
+# Or make it executable and run directly
+chmod +x db_updater.phar
+./db_updater.phar schema.sql
+```
+
+The PHAR file is completely self-contained and can be distributed without the source code.
+
 ## Usage
 
 ### Basic Usage
