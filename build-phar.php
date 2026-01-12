@@ -58,11 +58,14 @@ spl_autoload_register(function ($class) {
 // Parse command line arguments
 $ddlFile = null;
 $dryRun = false;
-$configFile = 'config.php';
+$jsonOutput = false;
+$configFile = null;
 
 foreach ($argv as $arg) {
     if ($arg === '--dry-run') {
         $dryRun = true;
+    } elseif ($arg === '--json') {
+        $jsonOutput = true;
     } elseif (strpos($arg, '--config=') === 0) {
         $configFile = substr($arg, 9);
     } elseif ($arg !== $argv[0] && $ddlFile === null) {
@@ -70,27 +73,55 @@ foreach ($argv as $arg) {
     }
 }
 
+// Auto-detect config file if not specified
+if ($configFile === null) {
+    if (file_exists('config.json')) {
+        $configFile = 'config.json';
+    } elseif (file_exists('config.php')) {
+        $configFile = 'config.php';
+    } else {
+        $configFile = 'config.php'; // Default fallback
+    }
+}
+
 // Validate arguments
 if ($ddlFile === null) {
-    echo "Usage: php db_updater.phar <ddl_file> [--dry-run] [--config=<config_file>]\n";
+    echo "Usage: php db_updater.phar <ddl_file> [--dry-run] [--json] [--config=<config_file>]\n";
     echo "\n";
     echo "Options:\n";
     echo "  --dry-run          Preview changes without applying them\n";
-    echo "  --config=<file>    Path to configuration file (default: config.php)\n";
+    echo "  --json             Output results in JSON format (for parsing execution results)\n";
+    echo "  --config=<file>    Path to configuration file (default: config.php or config.json)\n";
     exit(1);
 }
 
 // Load configuration
 if (!file_exists($configFile)) {
     echo "Error: Configuration file not found: {$configFile}\n";
-    echo "Please copy config.example.php to config.php and update with your database credentials.\n";
+    echo "Please copy config.example.php to config.php (or config.example.json to config.json) and update with your database credentials.\n";
     exit(1);
 }
 
-$config = require $configFile;
+$config = null;
+$extension = strtolower(pathinfo($configFile, PATHINFO_EXTENSION));
+
+if ($extension === 'json') {
+    // Load JSON configuration
+    $jsonContent = file_get_contents($configFile);
+    $config = json_decode($jsonContent, true);
+    
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo "Error: Invalid JSON in configuration file: {$configFile}\n";
+        echo "JSON error: " . json_last_error_msg() . "\n";
+        exit(1);
+    }
+} else {
+    // Load PHP configuration (default)
+    $config = require $configFile;
+}
 
 if (!is_array($config)) {
-    echo "Error: Configuration file must return an array.\n";
+    echo "Error: Configuration file must return an array (PHP) or be a valid JSON object.\n";
     exit(1);
 }
 
@@ -108,12 +139,19 @@ class DbUpdater
     private $logger;
     private $db;
     private $dryRun;
+    private $jsonOutput;
 
-    public function __construct(array $config, bool $dryRun = false)
+    public function __construct(array $config, bool $dryRun = false, bool $jsonOutput = false)
     {
         $this->config = $config;
         $this->dryRun = $dryRun;
-        $this->logger = new Logger($config['logging'] ?? []);
+        $this->jsonOutput = $jsonOutput;
+        // Disable file logging in JSON mode
+        $loggingConfig = $config['logging'] ?? [];
+        if ($jsonOutput) {
+            $loggingConfig['enabled'] = false;
+        }
+        $this->logger = new Logger($loggingConfig);
     }
 
     public function run(string $ddlFile): void
@@ -143,6 +181,15 @@ class DbUpdater
 
             // Quick check: if normalized DDLs match, no changes needed
             if ($normalizedCurrentDdl === $normalizedDesiredDdl) {
+                if ($this->jsonOutput) {
+                    echo json_encode([
+                        'status' => 'success',
+                        'success' => true,
+                        'message' => 'Database schema matches desired state. No changes needed.',
+                        'statements_executed' => 0
+                    ], JSON_PRETTY_PRINT) . "\n";
+                    return;
+                }
                 $this->logger->info("Database schema matches desired state. No changes needed.");
                 return;
             }
@@ -167,30 +214,51 @@ class DbUpdater
             $sqlStatements = $sqlGenerator->generateSql($differences);
 
             if (empty($sqlStatements)) {
+                if ($this->jsonOutput) {
+                    echo json_encode([
+                        'status' => 'success',
+                        'success' => true,
+                        'message' => 'Database schema is already up to date. No changes needed.',
+                        'statements_executed' => 0
+                    ], JSON_PRETTY_PRINT) . "\n";
+                    return;
+                }
                 $this->logger->info("Database schema is already up to date. No changes needed.");
                 return;
             }
 
             // Display SQL statements
-            $this->logger->info("Generated " . count($sqlStatements) . " SQL statement(s) to apply:");
-            echo "\n" . str_repeat("=", 80) . "\n";
-            echo "SQL STATEMENTS TO APPLY:\n";
-            echo str_repeat("=", 80) . "\n\n";
+            if (!$this->jsonOutput) {
+                $this->logger->info("Generated " . count($sqlStatements) . " SQL statement(s) to apply:");
+                echo "\n" . str_repeat("=", 80) . "\n";
+                echo "SQL STATEMENTS TO APPLY:\n";
+                echo str_repeat("=", 80) . "\n\n";
 
-            foreach ($sqlStatements as $index => $sql) {
-                echo ($index + 1) . ". " . $sql . "\n\n";
+                foreach ($sqlStatements as $index => $sql) {
+                    echo ($index + 1) . ". " . $sql . "\n\n";
+                }
+
+                echo str_repeat("=", 80) . "\n\n";
             }
-
-            echo str_repeat("=", 80) . "\n\n";
 
             // Apply changes if not in dry-run mode
             if ($this->dryRun) {
+                if ($this->jsonOutput) {
+                    echo json_encode([
+                        'status' => 'dry_run',
+                        'success' => null,
+                        'message' => 'Dry-run mode: SQL statements would be executed',
+                        'statements_count' => count($sqlStatements),
+                        'sql_statements' => $sqlStatements
+                    ], JSON_PRETTY_PRINT) . "\n";
+                    return;
+                }
                 $this->logger->info("Dry-run mode: Skipping execution of SQL statements");
                 return;
             }
 
-            // Confirm before applying (skip in non-interactive mode)
-            if (function_exists('posix_isatty') && posix_isatty(STDIN)) {
+            // Confirm before applying (skip in non-interactive mode or JSON output)
+            if (!$this->jsonOutput && function_exists('posix_isatty') && posix_isatty(STDIN)) {
                 echo "Do you want to apply these changes? (yes/no): ";
                 $handle = fopen("php://stdin", "r");
                 $line = trim(fgets($handle));
@@ -200,35 +268,71 @@ class DbUpdater
                     $this->logger->info("Operation cancelled by user");
                     return;
                 }
-            } else {
+            } elseif (!$this->jsonOutput) {
                 $this->logger->warning("Non-interactive mode: Proceeding with changes automatically");
             }
 
             // Execute SQL statements
-            $this->logger->info("Applying changes to database...");
+            if (!$this->jsonOutput) {
+                $this->logger->info("Applying changes to database...");
+            }
             
+            $executedCount = 0;
             foreach ($sqlStatements as $sql) {
                 try {
                     $this->db->execute($sql);
+                    $executedCount++;
                 } catch (\Exception $e) {
+                    if ($this->jsonOutput) {
+                        echo json_encode([
+                            'status' => 'error',
+                            'success' => false,
+                            'message' => 'Failed to execute SQL statement',
+                            'error' => $e->getMessage(),
+                            'failed_statement' => $sql,
+                            'statements_executed' => $executedCount,
+                            'statements_total' => count($sqlStatements)
+                        ], JSON_PRETTY_PRINT) . "\n";
+                        exit(1);
+                    }
                     $this->logger->error("Failed to execute SQL: " . $e->getMessage());
                     $this->logger->error("SQL was: " . $sql);
                     throw $e;
                 }
             }
 
+            if ($this->jsonOutput) {
+                echo json_encode([
+                    'status' => 'success',
+                    'success' => true,
+                    'message' => 'Database update completed successfully',
+                    'statements_executed' => $executedCount
+                ], JSON_PRETTY_PRINT) . "\n";
+                return;
+            }
+
             $this->logger->info("Database update completed successfully!");
 
         } catch (\Exception $e) {
+            if ($this->jsonOutput) {
+                echo json_encode([
+                    'status' => 'error',
+                    'success' => false,
+                    'message' => 'An error occurred during schema comparison or execution',
+                    'error' => $e->getMessage()
+                ], JSON_PRETTY_PRINT) . "\n";
+                exit(1);
+            }
             $this->logger->error("Error: " . $e->getMessage());
             $this->logger->error("Stack trace: " . $e->getTraceAsString());
             exit(1);
         }
     }
+
 }
 
 // Run the updater
-$updater = new DbUpdater($config, $dryRun);
+$updater = new DbUpdater($config, $dryRun, $jsonOutput);
 $updater->run($ddlFile);
 
 __HALT_COMPILER();

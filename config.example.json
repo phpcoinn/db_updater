@@ -1,0 +1,19 @@
+{
+    "database": {
+        "host": "localhost",
+        "port": 3306,
+        "dbname": "your_database_name",
+        "username": "your_username",
+        "password": "your_password",
+        "charset": "utf8mb4"
+    },
+    "logging": {
+        "enabled": true,
+        "file": "db_updater.log",
+        "level": "INFO"
+    },
+    "ignore_columns": [],
+    "ignore_tables": [],
+    "ignore_views": []
+}
+

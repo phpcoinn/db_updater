@@ -18,25 +18,46 @@ class DatabaseHandler
 
     private function connect(array $config): void
     {
-        $host = $config['host'] ?? 'localhost';
-        $port = $config['port'] ?? 3306;
-        $dbname = $config['dbname'] ?? '';
         $username = $config['username'] ?? '';
         $password = $config['password'] ?? '';
-        $charset = $config['charset'] ?? 'utf8mb4';
-
-        $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset={$charset}";
+        
+        // Check if DSN is provided directly
+        if (isset($config['dsn']) && !empty($config['dsn'])) {
+            $dsn = $config['dsn'];
+            // Extract database name from DSN for logging if possible
+            $dbname = $this->extractDbnameFromDsn($dsn) ?? ($config['dbname'] ?? '');
+        } else {
+            // Construct DSN from individual parameters
+            $host = $config['host'] ?? 'localhost';
+            $port = $config['port'] ?? 3306;
+            $dbname = $config['dbname'] ?? '';
+            $charset = $config['charset'] ?? 'utf8mb4';
+            
+            $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset={$charset}";
+        }
 
         try {
             $this->pdo = new PDO($dsn, $username, $password, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
-            $this->logger->info("Connected to database: {$dbname}");
+            $this->logger->info("Connected to database: " . ($dbname ?: 'unknown'));
         } catch (PDOException $e) {
             $this->logger->error("Database connection failed: " . $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * Extract database name from DSN string
+     */
+    private function extractDbnameFromDsn(string $dsn): ?string
+    {
+        // Parse DSN: mysql:host=...;dbname=...;charset=...
+        if (preg_match('/dbname=([^;]+)/i', $dsn, $matches)) {
+            return trim($matches[1]);
+        }
+        return null;
     }
 
     public function getPdo(): PDO
@@ -73,5 +94,6 @@ class DatabaseHandler
     {
         return $this->pdo->query("SELECT DATABASE()")->fetchColumn();
     }
+
 }
 

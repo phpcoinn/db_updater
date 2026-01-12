@@ -19,7 +19,7 @@ class SqlGenerator
 
         // Generate CREATE TABLE statements
         foreach ($differences['tables_to_create'] ?? [] as $tableName) {
-            $sqlStatements[] = $this->generateCreateTable($tableName);
+            $sqlStatements[] = $this->generateCreateTableInternal($tableName);
         }
 
         // Generate ALTER TABLE statements
@@ -30,12 +30,12 @@ class SqlGenerator
         
         // Generate CREATE OR REPLACE VIEW statements
         foreach ($differences['views_to_create'] ?? [] as $viewName) {
-            $sqlStatements[] = $this->generateCreateView($viewName);
+            $sqlStatements[] = $this->generateCreateViewInternal($viewName);
         }
         
         // Generate CREATE OR REPLACE VIEW statements for modified views
         foreach ($differences['views_to_modify'] ?? [] as $viewName) {
-            $sqlStatements[] = $this->generateCreateView($viewName);
+            $sqlStatements[] = $this->generateCreateViewInternal($viewName);
         }
         
         // Generate DROP VIEW statements (if enabled)
@@ -45,11 +45,27 @@ class SqlGenerator
 
         return $sqlStatements;
     }
+
+    /**
+     * Public method to generate CREATE TABLE statement (for initialization)
+     */
+    public function generateCreateTable(string $tableName): string
+    {
+        return $this->generateCreateTableInternal($tableName);
+    }
+
+    /**
+     * Public method to generate CREATE OR REPLACE VIEW statement (for initialization)
+     */
+    public function generateCreateView(string $viewName): string
+    {
+        return $this->generateCreateViewInternal($viewName);
+    }
     
     /**
      * Generate CREATE OR REPLACE VIEW statement
      */
-    private function generateCreateView(string $viewName): string
+    private function generateCreateViewInternal(string $viewName): string
     {
         $view = $this->desiredSchema['views'][$viewName];
         $definition = $view['definition'];
@@ -60,7 +76,7 @@ class SqlGenerator
         return "CREATE OR REPLACE VIEW `{$viewName}` AS {$definition};";
     }
 
-    private function generateCreateTable(string $tableName): string
+    private function generateCreateTableInternal(string $tableName): string
     {
         $table = $this->desiredSchema['tables'][$tableName];
         $sql = "CREATE TABLE `{$tableName}` (\n";

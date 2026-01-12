@@ -7,12 +7,18 @@
 
 return [
     'database' => [
+        // Option 1: Use individual parameters (recommended for most cases)
         'host' => 'localhost',
         'port' => 3306,
         'dbname' => 'your_database_name',
         'username' => 'your_username',
         'password' => 'your_password',
         'charset' => 'utf8mb4',
+        
+        // Option 2: Use DSN string directly (alternative)
+        // 'dsn' => 'mysql:host=localhost;port=3306;dbname=your_database_name;charset=utf8mb4',
+        // 'username' => 'your_username',
+        // 'password' => 'your_password',
     ],
     
     'logging' => [

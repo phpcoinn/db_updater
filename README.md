@@ -20,13 +20,21 @@ A PHP tool that synchronizes MySQL database schema by comparing the current stat
 
 ## Installation
 
-1. Copy `config.example.php` to `config.php` and update with your database credentials:
+1. Copy either `config.example.php` to `config.php` OR `config.example.json` to `config.json` and update with your database credentials:
 
+**Using PHP config (default):**
 ```bash
 cp config.example.php config.php
 ```
 
-2. Edit `config.php` with your database connection details.
+**Using JSON config:**
+```bash
+cp config.example.json config.json
+```
+
+2. Edit your chosen config file (`config.php` or `config.json`) with your database connection details.
+
+**Note:** The tool automatically detects `config.json` if it exists, otherwise falls back to `config.php`. You can also specify a custom config file using the `--config` option.
 
 ### Building a PHAR Archive (Optional)
 
@@ -65,10 +73,98 @@ Preview changes without applying them:
 php db_updater.php schema.sql --dry-run
 ```
 
-### Custom Configuration File
+**Note:** Dry-run mode only shows what SQL statements would be executed. It does not verify that those statements will succeed - actual execution may fail due to constraints, data conflicts, or other database-specific issues.
+
+### JSON Output (for Parsing Execution Results)
+
+Use `--json` to get machine-readable output for parsing execution results. This is useful for automation and CI/CD pipelines:
 
 ```bash
+# Dry-run with JSON
+php db_updater.php schema.sql --dry-run --json
+
+# Actual execution with JSON
+php db_updater.php schema.sql --json
+```
+
+**JSON Output Format:**
+
+**Success (no changes needed):**
+```json
+{
+    "status": "success",
+    "success": true,
+    "message": "Database schema matches desired state. No changes needed.",
+    "statements_executed": 0
+}
+```
+
+**Success (changes applied):**
+```json
+{
+    "status": "success",
+    "success": true,
+    "message": "Database update completed successfully",
+    "statements_executed": 3
+}
+```
+
+**Dry-run (shows what would be executed):**
+```json
+{
+    "status": "dry_run",
+    "success": null,
+    "message": "Dry-run mode: SQL statements would be executed",
+    "statements_count": 2,
+    "sql_statements": [
+        "ALTER TABLE `users` MODIFY COLUMN `email` varchar(255);",
+        "CREATE TABLE `posts` (...);"
+    ]
+}
+```
+
+**Error (execution failed):**
+```json
+{
+    "status": "error",
+    "success": false,
+    "message": "Failed to execute SQL statement",
+    "error": "Error message here",
+    "failed_statement": "ALTER TABLE ...",
+    "statements_executed": 1,
+    "statements_total": 3
+}
+```
+
+**Error (comparison failed):**
+```json
+{
+    "status": "error",
+    "success": false,
+    "message": "An error occurred during schema comparison or execution",
+    "error": "Error message here"
+}
+```
+
+**Example: Check if execution succeeded:**
+```bash
+# Check exit code (0 = success, 1 = error)
+php db_updater.php schema.sql --json && echo "Success" || echo "Failed"
+
+# Parse JSON to check success status
+php db_updater.php schema.sql --json | jq -e '.success == true' && echo "OK" || echo "Failed"
+```
+
+### Custom Configuration File
+
+You can specify a custom configuration file (PHP or JSON):
+
+```bash
+# PHP config file
 php db_updater.php schema.sql --config=my_config.php
+
+# JSON config file
+php db_updater.php schema.sql --config=my_config.json
 ```
 
 ## Generating Schema from Existing Database
@@ -176,11 +272,53 @@ CREATE TABLE `posts` (
 
 ### Configuration File Structure
 
-The configuration file (`config.php`) supports the following options:
+The configuration file (`config.php` or `config.json`) supports the following options:
+
+**Database Connection - Option 1: Individual Parameters (Recommended)**
+
+```php
+'database' => [
+    'host' => 'localhost',
+    'port' => 3306,
+    'dbname' => 'your_database_name',
+    'username' => 'your_username',
+    'password' => 'your_password',
+    'charset' => 'utf8mb4',
+],
+```
+
+**Database Connection - Option 2: DSN String**
+
+Alternatively, you can provide a DSN string directly. This is useful when you already have a DSN string or need more control over connection parameters:
+
+**PHP config:**
+```php
+'database' => [
+    'dsn' => 'mysql:host=localhost;port=3306;dbname=your_database_name;charset=utf8mb4',
+    'username' => 'your_username',
+    'password' => 'your_password',
+],
+```
+
+**JSON config:**
+```json
+{
+    "database": {
+        "dsn": "mysql:host=localhost;port=3306;dbname=your_database_name;charset=utf8mb4",
+        "username": "your_username",
+        "password": "your_password"
+    }
+}
+```
+
+**Note:** When using `dsn`, you don't need to specify `host`, `port`, `dbname`, or `charset` separately. The tool will extract the database name from the DSN for logging purposes.
+
+**Full Configuration Example:**
 
 ```php
 return [
     'database' => [
+        // Use either individual parameters OR dsn string (not both)
         'host' => 'localhost',
         'port' => 3306,
         'dbname' => 'your_database_name',
